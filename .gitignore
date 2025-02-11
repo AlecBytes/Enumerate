@@ -1,0 +1,43 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+env/
+*.venv
+*.env
+
+# IDE settings
+.vscode/
+.idea/
+*.sublime-workspace
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Logs and local configs
+*.log
+*.ini
+*.cfg
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+
+# PyInstaller
+*.spec
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Coverage reports
+.coverage
+htmlcov/
+*.cover
