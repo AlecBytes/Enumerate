@@ -2,28 +2,42 @@ import re
 import csv
 import pandas as pd
 
+import re
+
 def extract_balances_from_first_file(file_path):
     with open(file_path, 'r') as file:
         content = file.readlines()
 
     balances = {}
     seen_accounts = set()
+
     for line in content:
-        match = re.search(r'^\s*(\d{9})\s+.*?(\d[\d,]*\.\d+)(CR)?\s*$', line)
+        # Stop processing if line starts with "TOTALS:"
+        if re.match(r'^\s*TOTALS:', line):
+            break
+        
+        # Instead of (\d{9}), use ([A-Za-z0-9]+) to capture alphanumeric account numbers
+        match = re.search(r'^\s*(\d+[A-Za-z0-9]+)\s+.*?(\d[\d,]*\.\d+)(CR)?\s*$', line)
         if match:
             account_no = match.group(1)
-            balance_total = float(match.group(2).replace(',', ''))
-            if match.group(3):  # If 'CR' is present
+            balance_str = match.group(2).replace(',', '')
+            is_credit = bool(match.group(3))
+
+            balance_total = float(balance_str)
+            # If "CR" is present, make the balance negative
+            if is_credit:
                 balance_total = -balance_total
 
-            # If the account number has already been seen, append "*"
+            # If we've already seen this account number, append "*"
             if account_no in seen_accounts:
                 account_no += '*'
             seen_accounts.add(account_no)
 
             balances[account_no] = balance_total
             print(f"Extracted: {account_no} with balance {balance_total}")  # Debug print
+
     return balances
+
 
 def extract_balances_from_second_file(file_path):
     df = pd.read_excel(file_path, sheet_name='Owner Balances', skiprows=4)
@@ -31,24 +45,24 @@ def extract_balances_from_second_file(file_path):
     current_account = None
 
     for _, row in df.iterrows():
-        # Update current_account if this row has a non-empty Account#
         acct_val = row.get('Account#', None)
         if pd.notna(acct_val):
             acct_str = str(acct_val)
             # Stop if "Summary" account
             if acct_str.lower() == "summary":
                 break
+            
+            # Check if owner has '*', and if so, append '*' to the account number
+            owner_val = str(row.get('Owner', ''))
+            if '*' in owner_val:
+                acct_str += '*'
+            
+            # Update the current account we will use for subsequent rows
             current_account = acct_str
 
-        # If we still have no valid account, skip this row
+        # If there's still no valid account, skip
         if not current_account:
             continue
-
-        # Decide if we need to append "*" for a previous owner row
-        local_acc = current_account
-        owner_val = str(row.get('Owner', ''))
-        if '*' in owner_val:
-            local_acc += '*'
 
         # Parse the balance if it’s not NaN
         balance_val = row.get('Balance', None)
@@ -61,10 +75,11 @@ def extract_balances_from_second_file(file_path):
                 else:
                     balance_val = float(balance_val)
 
-            # Store/replace in the balances dictionary
-            balances[local_acc] = balance_val
+            # Store in the balances dict under the current account
+            balances[current_account] = balance_val
 
     return balances
+
 
 def main():
     import tkinter as tk
