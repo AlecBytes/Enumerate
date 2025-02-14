@@ -68,7 +68,7 @@ def extract_balances_from_first_file(file_path):
 
     return balances
 
-def extract_balances_from_second_file(file_path):#
+def extract_balances_from_second_file(file_path):
     logger.info(f"Reading Excel file: {file_path}")
     df = pd.read_excel(file_path, sheet_name='Owner Balances', skiprows=4)
     balances = {}
@@ -77,16 +77,19 @@ def extract_balances_from_second_file(file_path):#
     for _, row in df.iterrows():
         acct_val = row.get('Account#', None)
         if pd.notna(acct_val):
-            acct_str = str(acct_val)
+            acct_str = str(acct_val).strip()
             # Stop if "Summary" account
             if acct_str.lower() == "summary":
                 break
-            
-            # Check if owner has '*', and if so, append '*' to the account number
-            owner_val = str(row.get('Owner', ''))
-            if '*' in owner_val:
-                acct_str += '*'
-            
+
+            # Check if owner has '(*)', and if so, remove '(*)' and append that owner text
+            owner_val = str(row.get('Owner', '')).strip()
+            if '(*)' in owner_val:
+                # Remove '(*)' and strip any trailing spaces
+                clean_owner = owner_val.replace('(*)', '').strip()
+                # Append "*<cleaned owner>" to the account number, e.g. 00607100C*Duong Duong
+                acct_str = f"{acct_str}*{clean_owner}"
+
             # Update the current account for subsequent rows
             current_account = acct_str
 
@@ -105,10 +108,12 @@ def extract_balances_from_second_file(file_path):#
                 else:
                     balance_val = float(balance_val)
 
-            # Store in the balances dict under the current account
+            # Store in the balances dict under the (possibly modified) account
             balances[current_account] = balance_val
+            logger.info(f"Extracted: {current_account} with balance {balance_val}")
 
     return balances
+
 
 
 def main():
