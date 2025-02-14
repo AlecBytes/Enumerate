@@ -7,36 +7,63 @@ def extract_balances_from_first_file(file_path):
         content = file.readlines()
 
     balances = {}
+    seen_accounts = set()
     for line in content:
-        if line.startswith('D6'):
-            match = re.search(r'D6\s+(\d+).+?([\d,]+\.\d+)(CR)?\s*$', line)
-            if match:
-                account_no = match.group(1)
-                balance_total = float(match.group(2).replace(',', ''))
-                if match.group(3):  # If 'CR' is present
-                    balance_total = -balance_total
-                balances[account_no] = balance_total
+        match = re.search(r'^\s*(\d{9})\s+.*?(\d[\d,]*\.\d+)(CR)?\s*$', line)
+        if match:
+            account_no = match.group(1)
+            balance_total = float(match.group(2).replace(',', ''))
+            if match.group(3):  # If 'CR' is present
+                balance_total = -balance_total
+
+            # If the account number has already been seen, append "*"
+            if account_no in seen_accounts:
+                account_no += '*'
+            seen_accounts.add(account_no)
+
+            balances[account_no] = balance_total
+            print(f"Extracted: {account_no} with balance {balance_total}")  # Debug print
     return balances
 
 def extract_balances_from_second_file(file_path):
     df = pd.read_excel(file_path, sheet_name='Owner Balances', skiprows=4)
-    # print(df.columns)  # Print the column names for debugging
     balances = {}
-    account_no = None
+    current_account = None
+
     for _, row in df.iterrows():
-        if pd.notna(row['Account#']):
-            account_no = str(row['Account#'])
-            if account_no == "Summary":
+        # Update current_account if this row has a non-empty Account#
+        acct_val = row.get('Account#', None)
+        if pd.notna(acct_val):
+            acct_str = str(acct_val)
+            # Stop if "Summary" account
+            if acct_str.lower() == "summary":
                 break
-        if 'Total' in str(row['Unnamed: 5']):
-            balance_total = row['Balance']
-            if isinstance(balance_total, str):
-                balance_total = balance_total.replace(',', '')
-                if balance_total.startswith('(') and balance_total.endswith(')'):
-                    balance_total = -float(balance_total.strip('()'))
+            current_account = acct_str
+
+        # If we still have no valid account, skip this row
+        if not current_account:
+            continue
+
+        # Decide if we need to append "*" for a previous owner row
+        local_acc = current_account
+        owner_val = str(row.get('Owner', ''))
+        if '*' in owner_val:
+            local_acc += '*'
+
+        # Parse the balance if it’s not NaN
+        balance_val = row.get('Balance', None)
+        if pd.notna(balance_val):
+            # Convert string forms like "($390.00)" to negative floats
+            if isinstance(balance_val, str):
+                balance_val = balance_val.replace(',', '').strip()
+                if balance_val.startswith('(') and balance_val.endswith(')'):
+                    balance_val = -float(balance_val.strip('()'))
                 else:
-                    balance_total = float(balance_total)
-            balances[account_no] = balance_total
+                    balance_val = float(balance_val)
+
+            # Store/replace in the balances dictionary
+            balances[local_acc] = balance_val
+
     return balances
 
 def main():
@@ -55,6 +82,7 @@ def main():
 
     # Extract balances from the first file
     balances_TOPSPro = extract_balances_from_first_file(file_path1)
+    print(f"Number of accounts in first file: {len(balances_TOPSPro)}")  # Debug print
 
     # Open a file dialog to select the second file
     file_path2 = filedialog.askopenfilename(title="Select the second Excel file", filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")])
@@ -64,6 +92,7 @@ def main():
 
     # Extract balances from the second file
     balances_Central = extract_balances_from_second_file(file_path2)
+    print(f"Number of accounts in second file: {len(balances_Central)}")  # Debug print
 
     # Prompt for the location to save the output CSV file with a default file name
     output_file_path = filedialog.asksaveasfilename(defaultextension=".csv", initialfile="AR_bal_Pro_vs_Central.csv", filetypes=[("CSV files", "*.csv"), ("All files", "*.*")])
@@ -79,9 +108,9 @@ def main():
         all_accounts = set(balances_TOPSPro.keys()).union(set(balances_Central.keys()))
         tolerance = 0.01  # Define a tolerance for floating-point comparison
         for account_no in all_accounts:
-            balance_Pro = balances_TOPSPro.get(account_no)
-            balance_Central = balances_Central.get(account_no)
-            if balance_Pro is None or balance_Central is None or abs(balance_Pro - balance_Central) > tolerance:
+            balance_Pro = balances_TOPSPro.get(account_no, 0)
+            balance_Central = balances_Central.get(account_no, 0)
+            if (balance_Pro != 0 or balance_Central != 0) and abs(balance_Pro - balance_Central) > tolerance:
                 csvwriter.writerow([account_no, balance_Pro, balance_Central])
 
     print(f"Mismatched balances have been written to {output_file_path}")
