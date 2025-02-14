@@ -22,7 +22,11 @@ def extract_balances_from_first_file(file_path):
         content = file.readlines()
 
     balances = {}
-    seen_accounts = set()
+
+    # Regex to detect a valid account line:
+    # \d+ then at least 3 more alphanumeric chars, followed by some space, 
+    # then a money amount with optional CR
+    account_pattern = r'^\s*(\d+[A-Za-z0-9]{3,})\s+.*?(\d[\d,]*\.\d+)(CR)?\s*$'
 
     i = 0
     while i < len(content):
@@ -32,40 +36,37 @@ def extract_balances_from_first_file(file_path):
         if re.match(r'^\s*TOTALS:', line):
             break
 
-        # Regex for valid accounts (requires >=7 alphanumeric chars, adjust to your needs)
-        match = re.search(r'^\s*(\d+[A-Za-z0-9]{3,})\s+.*?(\d[\d,]*\.\d+)(CR)?\s*$', line)
+        match = re.search(account_pattern, line)
         if match:
             account_no = match.group(1)
             balance_str = match.group(2).replace(',', '')
             is_credit = bool(match.group(3))
 
             balance_total = float(balance_str)
-            # If "CR" is present, make the balance negative
             if is_credit:
                 balance_total = -balance_total
 
-            # Look at the next line to detect previous owners
+            # Look at next line, provided it isn't another account or TOTALS line
             if i + 1 < len(content):
-                next_line = content[i+1]
-                # If the next line has an asterisk in it (e.g. "MOTA*"), mark this account as a previous owner
-                if '*' in next_line:
-                    account_no += '*'
+                next_line = content[i + 1]
+                if (not re.search(account_pattern, next_line) and 
+                    not re.match(r'^\s*TOTALS:', next_line)):
 
-            # If we've already seen this exact account_no, append '*'
-            # Don't this we need this anymore, we changed the logic to check for detectin prev owners
-            # if account_no in seen_accounts:
-            #     account_no += '*'
-            # seen_accounts.add(account_no)
+                    # Now we assume this next_line might be the "owner name" line
+                    # Let's look for at least two alpha chars followed by '*'
+                    owner_match = re.search(r'([A-Za-z]{2,})\*', next_line)
+                    if owner_match:
+                        owner_prefix = owner_match.group(1)
+                        # Append "*<owner_prefix>" to the account
+                        account_no = f"{account_no}*{owner_prefix}"
 
+            # Store the balance under the (possibly modified) account number
             balances[account_no] = balance_total
             logger.info(f"Extracted: {account_no} with balance {balance_total}")
 
         i += 1
 
     return balances
-
-
-
 
 def extract_balances_from_second_file(file_path):#
     logger.info(f"Reading Excel file: {file_path}")
