@@ -4,7 +4,7 @@ import pandas as pd
 import logging
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 import re
@@ -18,6 +18,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 def extract_balances_from_first_file(file_path):
+    logger.info(f"Reading file: {file_path}")
     with open(file_path, 'r') as file:
         content = file.readlines()
 
@@ -62,7 +63,7 @@ def extract_balances_from_first_file(file_path):
 
             # Store the balance under the (possibly modified) account number
             balances[account_no] = balance_total
-            logger.info(f"Extracted: {account_no} with balance {balance_total}")
+            logger.debug(f"Extracted: {account_no} with balance {balance_total}")
 
         i += 1
 
@@ -110,7 +111,7 @@ def extract_balances_from_second_file(file_path):
 
             # Store in the balances dict under the (possibly modified) account
             balances[current_account] = balance_val
-            logger.info(f"Extracted: {current_account} with balance {balance_val}")
+            logger.debug(f"Extracted: {current_account} with balance {balance_val}")
 
     return balances
 
