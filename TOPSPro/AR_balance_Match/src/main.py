@@ -7,16 +7,6 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-import re
-import logging
-
-logger = logging.getLogger(__name__)
-
-import re
-import logging
-
-logger = logging.getLogger(__name__)
-
 def extract_balances_from_first_file(file_path):
     logger.info(f"Reading file: {file_path}")
     with open(file_path, 'r') as file:
